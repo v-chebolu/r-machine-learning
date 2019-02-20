@@ -17,7 +17,7 @@ This exercise aims to analyze human activity data and predict the manner in whic
 
 - E : activity was performed while throwing hips to front
 
-We explore Random Forest models for this machine learning exercise. We will choose the smallest number of predictors that will provide good accuracy. We are provided with training and test data, but the outcome is missing from test data, so we split the training data into two parts. We one part for training the model, and the other for evaluating the model.
+We explore Random Forest models for this machine learning exercise. We will choose the smallest number of predictors that will provide good accuracy. We are provided with training and test data, but the outcome is missing from test data, so we split the training data into two parts. We use one part for training the model, and the other for evaluating the model.
 
 ### Data Exploration and Clean Up  
   
