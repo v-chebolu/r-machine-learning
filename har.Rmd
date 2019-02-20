@@ -1,0 +1,131 @@
+---
+title: "Prediction of Human Activity"
+author: "Venkata B Chebolu"
+date: "February 19, 2019"
+output: html_document
+---
+### SYNOPSIS
+This exercise aims to analyze human activity data and predict the manner in which the activity was performed. Six young people performed one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions. The outcome is a factor variable of five levels:  
+
+- A : activity was performed according to specification 
+
+- B : activity was performed while throwing elbows to front
+
+- C : dumbbell was lifted only half way
+
+- D : dumbbell was lowered only half way
+
+- E : activity was performed while throwing hips to front
+
+We explore Random Forest models for this machine learning exercise. We will choose the smallest number of predictors that will provide good accuracy. We are provided with training and test data, but the outcome is missing from test data, so we split the training data into two parts. We one part for training the model, and the other for evaluating the model.
+
+### Data Exploration and Clean Up  
+  
+#### Read files
+
+```{r}
+library(RANN)
+library(caret)
+library(randomForest)
+
+trn <- read.csv("pml-training.csv")
+tst <- read.csv("pml-testing.csv")
+set.seed(12321)
+```
+
+#### Inspect data for NAs
+```{r}
+dim(trn)
+summary(trn)
+```
+
+We have NAs in some columns, and some numeric columns don't seem to have
+numeric values for most of the rows. We look at NAs first. Let's get the number of NAs in each column. 
+```{r}
+sapply(trn, function(x) sum(is.na(x)) )
+```
+
+The columns that have NAs have NAs for almost all the rows. Imputing values for them is pointless. It is best to remove them consideration. We keep 'classe' out of the column list - we keep the outcome in a separate vector. We also eliminate the column named 'X' that seems to be just a row number, and cannot possibly have any influence on the outcome. 
+```{r} 
+goodcols <- names(trn)[ sapply(trn, function(x) sum(is.na(x)) == 0) ]
+goodcols <- goodcols[(goodcols != 'classe') & (goodcols != 'X')]
+trngood <- trn[,goodcols]
+tstgood <- tst[,goodcols]
+trny    <- trn$classe
+```
+#### Eliminate Factor Columns
+
+Then we exclude columns that are supposed to be numeric but are factors because values are missing for most rows. Note that we eliminate the cvtd_timestamp column in this step as it is a factor. We do have two other columns that represent the raw timestamp, so we are losing nothing. Note that the test for column data type is done on training data columns for both assignments below.
+```{r}
+trngood <- trngood[,sapply(trngood,class) != "factor"]
+tstgood <- tstgood[,sapply(trngood,class) != "factor"]
+```
+
+### Model Selection
+
+#### Split Training Data
+Data clean up is complete. We split training data into two sets - one for training the model, and one for evaluating the model.
+```{r}
+inTrain <- createDataPartition(y=trn$classe, p=0.8, list=F)
+trntrn <- trngood[inTrain,]
+trneval <- trngood[-inTrain,]
+trntrny <- as.factor(trny[inTrain])
+trnevaly <- as.factor(trny[-inTrain])
+```
+As we have a multi-level classification problem on our hands, a model based on decision trees is a candidate for consideration. We will explore a Random Forest classification algorithm, while taking care to keep the model simple in order to avoid overfitting. We choose 200 for the tree count instead of the default 500. We will strive to keep the number of features used in the model small:
+
+- First, we find out how many features are needed for producing a good model. To that end, we run Random Forest Cross-Validation (rfcv) for feature selection on the data. It shows the cross-validated prediction performance of models with sequentially reduced number of features ranked by feature importance.  
+
+- Then we run Random Forest algorithm on all available features, and list features in decreasing importance. We select the desired number of features from the top, and re-run the Random Forest algorithm on just those features. 
+
+#### Determine Number of Features 
+
+```{r}
+res <- rfcv(trainx=trntrn, trainy=trntrny, ntree=200)
+res$error.cv
+```
+
+We can see that the error rate is pretty good for 7 columns. Next we run random forest on all available features and find out the most important 7 features.
+
+#### Identify Features For Use
+
+```{r}
+ff <- randomForest(x=trntrn, y=trntrny, ntree=200)
+cols <- names(importance(ff)[order(-importance(ff)),1])[1:7]
+cols
+```
+
+Now that the 7 features are identified, it's time to prepare the data and re-run random forest on just the 7 features.
+
+#### Create Model
+
+```{r}
+#alltrn <- trngood[,cols]
+#alltrn$classe <- trny 
+#pairs(alltrn)
+trntrn <- trntrn[,cols]
+trneval <- trneval[,cols]
+tstgood <- tstgood[,cols]
+ff2 <- randomForest(x=trntrn, y=trntrny, ntree=200)
+```
+
+#### Evaluate Model 
+
+Let's see how the model does on training data and evaluation data
+```{r}
+confusionMatrix(predict(ff2), trntrny)
+confusionMatrix(predict(ff2, newdata=trneval), trnevaly)
+```
+The model does better on new data than on training data, which addresses the concerns we had on overfitting.
+
+Let us plot the random forest model.
+```{r}
+#predict(ff2, tstgood)
+plot(ff2)
+```
+
+
+We see that the error rate for all five outcomes goes down as the number of trees goes up. 
+
+
+
